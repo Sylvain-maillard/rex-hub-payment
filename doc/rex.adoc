@@ -1,0 +1,157 @@
+----
+TODO: prez équipe, tampon équipe sécu ?
+----
+
+# Rex DDD/Event Sourcing sur la brique de paiement de Voyages-sncf.com
+
+On entend beaucoup parler de ddd, d'event sourcing, de cqrs, mais il y a peu de retour sur la mise en place de ces techniques sur des projets stratégiques qui tournent en production.
+
+On l'a fait sur la refonte de la brique de paiement du site voyages-sncf.com;
+
+Ceci est une présentation pour expliquer comment nous avons tenter d'implémenter ces concepts sur le hub de paiement, quels choix nous avons fait, quels problèmes nous avons eu et les leçons que nous en avons tiré.
+
+# le hub de paiement: du legacy vers ... en passant par DDD/Event Sourcing/CQRS
+
+Rex sur la mise en place d'une brique logicielle chez vsc, en utilisant les techniques de ddd, event sourcing, api rest
+comment passe t'on d'une application monolitique legacy non maitrisée à une solution state of the art ?
+
+On entend beaucoup parler de ddd, d'event sourcing, de cqrs, mais il y a peu de retour sur la mise en place de ces techniques sur des projets stratégiques qui tournent en production.
+
+On l'a fait sur la refonte de la brique de paiement du site voyages-sncf.com;
+
+Ceci est une présentation pour expliquer comment nous avons tenter d'implémenter ces concepts sur le hub de paiement, quels choix nous avons fait, quels problèmes nous avons eu et les leçons que nous en avons tiré.
+
+
+## Constats sur l'existant
+
+une seule application
+de multiple intervenants
+le run de la fonction de paiement ne repose que sur une seule personne sachante au bord du burn out
+le build est déporté sur une équipe dont ce n'est pas l'unique responsabilité (check that)
+des problèmes en production que le support à du mal a traité.
+
+## La commande
+- créer un nouvel asset logiciel qui résoud tout ces problèmes,
+- traçabilité
+- performance
+- plus, pouvoir le réutiliser pour d'autres applications,
+en effet, nous sommes en pleine anticipation de nouveaux besoins (mobiles, etc) et refonte du si
+
+## Le chemin
+- start avec l'équipe existante
+- constitution d'une feature team
+- allocation de moyens
+- ramp up de l'équipe: ajout support, ops, archi
+- mise en place de bonnes pratiques: BDD, agilité (scrum au début puis lean sur la fin)
+
+## La problématique métier
+
+Le paiement chez VSC
+80% des ventes => carte bancaire en 3DS.
+VSC n'encaisse pas l'argent sur son propre compte, c'est la SNCF qui encaisse l'argent.
+Gestion de la fraude avec le scoring
+multipartenaire de paiements, atos, atos sips2,
+obfuscation de la carte de crédit: tokenisation par pandore.
+la gestion des rapprochements flux financier / flux comptable avec la sncf.
+Complexité technique, techno hétérogènes: tcp, mqseries, soap...
+Complexité fonctionnelle du si: plusieurs briques différentes pour faire le paiement et le crédit (!= remboursement)
+
+## Etat de l'existant, partie Technique
+	- pour voir d'où on vient côté legacy.
+
+## Les solutions
+
+### DDD: pourquoi ? quel intérêt ?
+   le ddd est un style architectural, qui met au centre le langage métier, et repousse les problématiques techniques en périphéries.
+   D'habitude chez VSC on fait les applications comme ça:
+
+   Front --> Payment View ---> Payment Controller ---> Payment Data (Model) ---> Payment Dao
+                                                                            +--> Payment Service Provider
+																						+--> Sips1 Provider ..
+
+	Avec le ddd:
+	Front ---> Api Rest ---> Payment Use Case ---> Payment ---> PSP  <|------Sips1Psp
+	                                                   +------> Store <|-----OracleStore
+
+	La promesse du DDD c'est de discuter avec les différents acteurs du projet: métiers, dev, ops, tests, support, en utilisant le même langage.
+	=> cela permet de répondre à un problème du legacy existant dans lequel le metier n'a finalement pas une bonne idée de ce qui se passe réélement en production, à chaque problème un dev doit aller voir dans le code ce qui se passe.
+	Le support doit éplucher les logs pour deviner les comportements cause des pbs.
+
+### State Machines
+	Notre application va donc s'articuler autour du DDD, ce qui implique la modélisation de concepts de première classe.
+	On va exploiter ici la notion d'entity du DDD à fond:
+		- une entity est un objet du domaine qui possède une identité propre et un état.
+		- nous modélisons les changements de cet état par une machine à état.
+	Pourquoi ? pour avoir une base de communication avec le métier / le support / les tests qui soit commune.
+	- il est important que la modélisation de la machine a état soit la plus proche possible du code.
+	- pour cela, on utilise le framework Spring State Machine...
+
+### Event Sourcing:
+	L'event sourcing se marie très bien avec la statemachine, à partir du moment où on dit que pour passer une transition, on lance un évenement.
+	Nous avons implémenté l'event sourcing sous forme d'une table dans Oracle.
+		Pendant longtemps, l'application tournait uniquement avec cette event store: pour obtenir l'état courant du paiement, on devait rejouer la liste des events dans une machine a état de type "replay" sans effet de bord.
+		A date, on a crée une vue de l'état en cours, qui ressemble plus à une table classique. Cette table est mise à jour à chaque modification de l'état détecté par la machine à état. On s'assoie ici sur le principe de transaction "eventually consistent". Pourquoi ?
+			----> request POST /payment arrive sur une instance A
+			----> l'instance renvoi la localisation de la ressource créé avec le code HTTP 303.
+			----> le client redirige instantanément la sur cette location
+			----> or dans notre archi, on ne souhaite pas s'embéter avec des afinités de session
+			----> donc sur le get, on peut se retrouver dans n'importe quelle autre instance que A.
+			----> donc le get, doit obtenir l'état réel du paiement, et non un état transitoire qui peut changer (eventualley consistant)
+			=> ça c'est un truc qu'on a décidé, certain partenaire de paiement, utilise le principe éventuellement consistant (par exemple busbud: obligé de poller le serveur jusqu'à obtenir une réponse attendue...)
+
+### Rest API
+	- Pour manipuler notre entity, nous allons nous appuyer sur une couche de présentation Rest.
+	- pourquoi ?
+		Notre entity est un objet du domaine avec une identité et un état => ça correspond à la définition d'une ressource REST dont l'identité est représentée par sa localisation (URI)
+		Donc ça s'applique parfaitement. Enfin presque. En théorie dans Rest, les changements d'états sont fait via la méthode POST et un contenu adapté. par exemple POST /payments/xxxx avec le body { action: "change_state", new_state:"confirmed"}
+		En fait on utilise pas ce système, on évite l'extrémisme REST (REStAFARIAN) on va rester RestLight.
+		Cela signifie que pour nos entity les plus importantes, on applique les principes REST, mais pour les changements d'état on va définir des routes correspondant à des méthodes. C'est plus une approche orientée objet si on veut. ainsi l'exemple du dessus devient: POST /payments/xxxx/confirm sans body. et en fait on utilise PUT qui est idempotent.
+
+## Performance
+	On a choisi de travailler sur du code reactif non bloquant avec VertX
+	Pourquoi ? ben parce qu'on y connaissais rien et que c'était hype.
+	=> je plaisante a moitié. c'est une solution que l'on va regretter plus tard.
+	intérêt de la programmation réactive non bloquante dans notre cas ?
+	nos partenaires sont lents: une demande d'authorisation peut prendre plusieurs secondes en production ce qui n'est pas idéal. Nous avons plusieurs partenaires qui sont dans cette situation. Lorsqu'un thread est en attente d'un partenaire, il ne travaille pas a autre chose, nous avons donc un gachis de ressources. D'ou l'intérêt du paradigme non bloquant dans cette situation.
+	Les inconvénients:
+	- la complexité du code : changement de paradigme difficile à aborder par les dev.
+	- difficulité a débugger:
+	- vertx sympa mais pas intégré avec nos stacks traditionnelles qui sont basées sur spring: alors on a quand même fait du spring partout après moult aternoiement pour savoir si on partait sur l'utilisation de verticles ou pas. Dans le doute, on a préféré dépendre le moins possible de vertx.
+	L'avantage:
+	- moins d'instances en production, on tient une charge plus importante avec moins de serveurs. C'est plus facile a exploiter.
+	Mais,
+	si c'était a refaire, pas sur qu'on referait ce choix. C'est le plus difficile a défendre je pense. on apprend de ses erreurs.
+
+## Contraintes du réactif non bloquant.
+	On s'est vite rendu compte qu'il était difficile de concilier l'approche Vertx (à base de verticle, pas facile d'organiser son code avec des handler dans tous les sens)
+	Du coup, on a plusieurs approche possible.
+	- utiliser l'eventbus vertx pour la communication entre toutes les briques: trop compliqué, indébugable.
+	- utiliser RxJava pour reduire le "callback hell"
+
+## Contraintes de vertx
+	- c'est bof aussi car à l'époque il n'y a pas de framework Rest (il existe vertxweb mais rien au niveau de spring web mvc par exemple)
+	- conséquence, on ne peut pas avoir de générateur de doc swagger par exemple, faut gérer la doc à la main.
+	ou alors tu développes ton fwk => jamais une bonne idée / souvent une F.B.I
+
+## La strategie de Test
+	- tests de perf: gatling
+	- tests BDD: Cucumber
+		- en lien avec la redaction des users stories.
+		- problème épineux des mocks. comment on le résoud ? deux approches:
+			- BBD "online" => ces tests utilisent une plateforme réelle connectée aux plateformes de recette/formation/intégration/horsprod des partenaires.
+				Avantage: on automatise ces tests qui sont fait manuellement. on est sensible aux modifications intempestives des contrats des partenaires (ça arrive)
+				Inconvénient: on est dépendant de la dispo des plateformes partenaires et de leurs jeux de données de test. On ne maitrise pas vraiment le jeu de données.
+				Quand une erreur apparait, il y a un risque d'avoir un faux positif. Au bout d'un moment, l'équipe ne regarde même plus les tests, ce qui risque de laisser passer une vrai regression.
+			- BDD "blackboxktest" => test en mode entièrement mockés. Ils n'ont pas besoin de plateforme pour s'executer. Le jeux d'essais est géré par le scénario cucumber lui même, et pas dans un mock inteliggent ! c'est super efficace car tout est localisé dans le scénario, contrairement à une solution de mock intelligent.
+				Avantage: si ça plante, c'est qu'on a fait une regression, modulo le fait que le test soit bien codé (vrai dans toutes les solutions); autre avantage: on peut mocker des cas complexes, comme des retours d'erreurs, des timeouts, des déconnexions...
+
+				Inconvénient: on test pas vraiment les vrai partenaires, si nos mocks ne sont pas parfaitement vrai, on va rater des cas de tests en prod ce qui serait dommage (vécu: perte de + de 30000€); autre inconvénient, on test pas une plateforme mais un genre de bocal, donc on risque de passer à côté de certain truc, comme les interactions multi instances...
+
+## Le DevOps:
+	- on est une feature team, cela signifie qu'on a toutes les compétences dans l'équipe pour passer de l'idée à la production. Dans les faits cela fluidifie beaucoup, on implique les ops et le supports en amont des dev. Y a des loupés, bien sur, mais cela laisse la place à l'amélioration continue.
+
+# Résultats
+
+	+ le PO est satisfait de la machine a état
+	+ le support peut plus facilement analyser les problèmes
+	- vertx et RxJava: complexité du code, utile ou pas ?
