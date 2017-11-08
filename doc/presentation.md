@@ -36,13 +36,38 @@ Ceci est la page de paiement du site vsc. c'est un peu la partie emergée de l'i
 
 ===
 
-### Architecture existante
+## Architecture existante
 
 ![Archi Legacy](images/archi-legacy.png)<!-- .element style="border: 0; background: None; box-shadow: None" -->
 
 note: on a ce qu'on appelle un gros code legacy.
 Ici, tout le code est placé dans une seule application. Cette application est responsable de tout le métier de la vente de billet de train.
 Il s'agit d'une application historique (2001 la naissance quand même) qui est en train de devenir impossible a faire évoluer: on corrige d'un côté ça casse de l'autre...exemple du passage à Oui.
+
+===
+
+## Douleurs 
+
+* une seule application
+* de multiple intervenants
+* le run de la fonction de paiement ne repose que sur une seule personne sachante au bord du burn out
+* le build est déporté sur une équipe dont ce n'est pas l'unique responsabilité (check that)
+* des problèmes en production que le support a du mal à traiter.
+
+---
+
+# Le besoin
+
+===
+
+## Y voir plus clair
+
+* le metier souhaite reprendre la main sur le paiement
+* on souhaite améliorer la traçabilité des évenements liés aux paiements
+
+note: actuellement, le metier doit demander aux developpeurs de lui expliquer comment fonctionne le paiement
+ce n'est pas la bonne manière de faire. On veut rendre la connaissance au metier => solution: le DDD
+Nous avons également des problèmes de traçabilité du fonctionnement en prod => solution: l'Event Sourcing. 
 
 ---
 
@@ -51,11 +76,13 @@ Il s'agit d'une application historique (2001 la naissance quand même) qui est e
 * le modèle Feature Team
 * le DDD Stratégique
 
-note: disclaimer: c'est moi qui fait les interprétations des concepts, c'est pas un truc qu'on m'a expliqué mais une perception de ma part.
+note: 
+disclaimer: c'est moi qui fait les interprétations des concepts, c'est pas un truc qu'on m'a expliqué mais une perception de ma part.
+comment adresser le problème à la fois technique et organisationnel ?
 
----
+===
 
-# Le DDD "Stratégique"
+## Le DDD "Stratégique"
 
 * travail d'urbaniste
 * recherche de "bounded context"
@@ -63,7 +90,7 @@ note: disclaimer: c'est moi qui fait les interprétations des concepts, c'est pa
 note: le ddd strategique est un outil qui va être utilisé au niveau du système d'information de l'entreprise, ou au moins sur l'ensemble du produit (dans le cas de VSC).
 l'objectif est de définir des domaines fonctionels, les "bounded contexts"
 
----
+===
 
 # Qu'est ce qu'un bounded context ?
 
@@ -72,7 +99,7 @@ l'objectif est de définir des domaines fonctionels, les "bounded contexts"
 
 note: par exemple, un code promo n'aura pas le même sens s'il est utilisé dans le cadre d'un paiement ou d'une vente..
 
----
+===
 
 le bounded context est lié à la culture d'entreprise
 
@@ -87,8 +114,9 @@ quelque chose d'efficace quand on a une équipe == une application == un bounded
 # Le Bounded Context Paiement
 
 note: Je vais maintenant parler de notre contenu.
+L'analyse de notre bounded context va nous permetre d'avancer sur la conception de notre application
 
----
+===
 
 # Une transaction ?
 
@@ -102,7 +130,7 @@ d'après notre définition, interne à l'entreprise, nous devons uniquement nous
 récupération de l'argent, et non pas à la phase qui consiste à livrer le bien: c'est ce qu'on appelle la finalisation.
 C'est un autre context. 
 
----
+===
 
 ### Le paiement chez VSC/Oui.sncf
 
@@ -120,8 +148,15 @@ On a tout un backoffice à alimenter avec les flux financiers
 
 ---
 
-# Design de l'application 
+# Design de l'application
+
+===
+
+# Technique
 
 * le DDD "Tactique"
+* entité, service, value objects, etc.
 
 note: 
+pas de domaine anémique etc.
+
