@@ -7,7 +7,8 @@
     <title>Rex DDD/Event Sourcing sur la brique de paiement de Voyages-Sncf.Com</title>
 
     <link rel="stylesheet" href="../revealjs/css/reveal.css">
-    <link rel="stylesheet" href="../revealjs/css/theme/black.css">
+    <!--<link rel="stylesheet" href="../revealjs/css/theme/black.css">-->
+    <link rel="stylesheet" href="../revealjs/css/theme/beige.css">
 
     <!-- Theme used for syntax highlighting of code -->
     <link rel="stylesheet" href="../revealjs/lib/css/zenburn.css">
@@ -19,19 +20,13 @@
         link.type = 'text/css';
         link.href = window.location.search.match(/print-pdf/gi) ? 'css/print/pdf.css' : 'css/print/paper.css';
         document.getElementsByTagName('head')[0].appendChild(link);
+
     </script>
 </head>
 <body>
 <div class="reveal">
     <div class="slides">
-        <section data-markdown="presentation.md" data-separator="---"></section>
-        <!--<section data-markdown>-->
-            <!--<textarea data-template>-->
-                <!--## Page title-->
-
-                <!--A paragraph with some text and a [link](http://hakim.se).-->
-            <!--</textarea>-->
-        <!--</section>-->
+        <section data-markdown="presentation.md" data-separator="---" data-separator-vertical="==="></section>
     </div>
 </div>
 
@@ -44,6 +39,7 @@
     // - https://github.com/hakimel/reveal.js#dependencies
     Reveal.initialize({
         dependencies: [
+            {src: '../plugins/elapsed-time-bar.js'},
             {src: '../revealjs/plugin/markdown/marked.js'},
             {src: '../revealjs/plugin/markdown/markdown.js'},
             {src: '../revealjs/plugin/notes/notes.js', async: true},
@@ -52,8 +48,17 @@
                 hljs.initHighlightingOnLoad();
             }
             }
-        ]
+        ],
+        allottedTime: 3 * 60 * 1000, // 3 minutes
+        markdown: {
+            smartypants: true
+        },
+        // Parallax background image
+        parallaxBackgroundImage: 'images/back-0.jpg',
+        // Parallax background size
+        parallaxBackgroundSize: '3840px 2160px',
     });
+
 </script>
 </body>
 </html>
