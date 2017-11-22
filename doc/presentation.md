@@ -1,6 +1,12 @@
+# Il était une fois...
+
+===
+
 ![Page de paiement de voyages-sncf.com](images/2017-10-30%2023_22_58-Récapitulatif%20et%20paiement%20de%20votre%20commande.png)<!-- .element style="border: 0; background: None; box-shadow: None" -->
 
-note: Je vous parler de cette page: 
+note:
+Il était une fois un bon gros legacy.
+Je vous parler de cette page: 
 Ceci est la page de paiement du site vsc. c'est un peu la partie emergée de l'iceberg du domaine paiement qui nous concerne ce soir. 
 
 ===
@@ -19,9 +25,25 @@ Il s'agit d'une application historique (2001 la naissance quand même) qui est e
 
 * une seule application
 * de multiple intervenants
-* le run de la fonction de paiement ne repose que sur une seule personne sachante au bord du burn out
-* le build est déporté sur une équipe dont ce n'est pas l'unique responsabilité (check that)
+* le run de la fonction de paiement ne repose que sur une seule personne
+* le build est déporté sur une équipe dont ce n'est pas l'unique responsabilité
 * des problèmes en production que le support a du mal à traiter.
+
+===
+
+## La problématique métier liée au paiement
+
+* Fortement lié à la sncf                                          
+* Problématique de reconciliation comptable                        <!-- .element: class="fragment" -->
+* Différents partenaires en fonction des moyens de paiement        <!-- .element: class="fragment" -->
+* Problématique de sécurisation des cartes bancaires               <!-- .element: class="fragment" -->
+* Problématique liée à la gestion de la fraude.                    <!-- .element: class="fragment" -->
+
+note:
+Le paiement n'est pas si simple qu'il y parait: C'est la sncf qui encaisse l'argent, pas oui.sncf/vsc
+On utilise un système d'Atos (sips1) pour la carte bancaire et un autre système (sips2) pour paypal et les autres moyens de paiement pour l'europe
+On utilise un partenaire de scoring pour la gestion de la fraude
+On a tout un backoffice à alimenter avec les flux financiers
 
 ---
 
@@ -31,8 +53,8 @@ Il s'agit d'une application historique (2001 la naissance quand même) qui est e
 
 ## Y voir plus clair
 
-* le metier souhaite reprendre la main sur le paiement
-* on souhaite améliorer la traçabilité des évenements liés aux paiements
+* le metier souhaite savoir comment fonctionne le paiement
+* le métier souhaiter améliorer la traçabilité des évènements liés aux paiements
 
 note: actuellement, le metier doit demander aux developpeurs de lui expliquer comment fonctionne le paiement
 ce n'est pas la bonne manière de faire. On veut rendre la connaissance au metier => solution: le DDD
@@ -99,22 +121,6 @@ d'après notre définition, interne à l'entreprise, nous devons uniquement nous
 récupération de l'argent, et non pas à la phase qui consiste à livrer le bien: c'est ce qu'on appelle la finalisation.
 C'est un autre context. 
 
-===
-
-### Le paiement chez VSC/Oui.sncf
-
-* Fortement lié à la sncf                                          
-* Problématique de reconciliation comptable                        <!-- .element: class="fragment" -->
-* Différents partenaire en fonction des moyen de paiement          <!-- .element: class="fragment" -->
-* Problématique de sécurisation des cartes bancaires               <!-- .element: class="fragment" -->
-* Problématique liée à la gestion de la fraude.                    <!-- .element: class="fragment" -->
-
-note:
-Le paiement n'est pas si simple qu'il y parait: C'est la sncf qui encaisse l'argent, pas oui.sncf/vsc
-On utilise Atos pour la carte bancaire et un autre système pour paypal
-On utilise un partenaire de scoring pour la gestion de la fraude
-On a tout un backoffice à alimenter avec les flux financiers
-
 ---
 
 # Design de l'application
@@ -129,3 +135,16 @@ On a tout un backoffice à alimenter avec les flux financiers
 note: 
 pas de domaine anémique etc.
 
+---
+
+# Architecture du Hub de paiement
+
+===
+
+TODO: ajouter le diagramme d'archi du hub
+
+===
+
+## Machine à état du paiement
+
+TODO: faire un visuel rapide de la machine à état du paiement.
